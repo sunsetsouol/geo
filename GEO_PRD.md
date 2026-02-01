@@ -1,97 +1,83 @@
 # GEO (Generative Engine Optimization) 项目需求文档 (PRD)
 
 ## 1. 项目概览
-GEO 项目旨在监控、分析和优化大模型（如 DeepSeek）中特定品牌的曝光情况。通过自动化脚本模拟用户提问，分析模型的回复及引用的链接，评估品牌在生成式引擎中的可见度和倾向性，从而指导优化策略。
+GEO 项目旨在监控、分析和优化大模型（如 DeepSeek）中特定品牌的曝光情况。通过自动化脚本模拟用户提问，分析模型的回复及引用的链接，评估品牌在生成式引擎中的可见度和倾向性。同时，系统通过**生成针对性的品牌文章并发布到网络**，增加大模型训练或联网搜索时的品牌相关语料，从而主动优化品牌在 AI 模型中的曝光表现。
 
 ## 2. 系统架构
-系统分为两个主要部分：
-- **监控端 (Monitoring Client)**: 基于 Playwright 的自动化脚本，负责与大模型交互。
-- **服务端 (Server)**: 负责任务管理、提示词 (Prompt) 管理、数据接收、品牌曝光分析及 API 接口提供。
+系统分为三个主要部分：
+- **监控端 (Monitoring Client)**: 基于 Playwright 的自动化脚本，负责与大模型交互，采集品牌曝光数据。
+- **服务端 (Server)**: 
+    - **任务与数据管理**: 负责 Prompt 管理、任务调度、结果存储。
+    - **分析引擎**: 对采集到的回复进行自动化评分与分析。
+    - **内容生成模块 (AGO - Article Generation & Optimization)**: 调用大模型生成利于 SEO/GEO 的文章，并管理发布流程。
+- **数据库**: MySQL 存储提示词、任务记录、分析结果及生成的优化文章。
 
 ## 3. 功能需求
 
 ### 3.1 监控端 (Monitoring Client)
 - **任务轮询**: 定期请求服务端获取处于 `pending` 状态的任务。
-- **任务锁定**: 成功获取任务后，监控端进入任务执行状态，服务端应标记该任务为 `processing` 以防重复分配。
-- **自动化交互**:
-    - 使用 Playwright 驱动浏览器访问 DeepSeek 等模型。
-    - 输入从服务端获取的 Prompt 并提交。
-    - 实时监控页面，捕获大模型的完整响应文本。
-    - 自动提取响应中包含的引用链接 (Citations/References)。
-- **任务结果汇报**: 
-    - 任务成功完成后，调用服务端 API 上报结果（文本 + 链接），并将任务状态更新为 `completed`。
-    - 若执行失败（如网络、脚本错误），需上报失败原因，并将任务状态置为 `failed` 或回退到 `pending`。
-- **异常处理**: 处理验证码、模型限流、页面结构变化等。
+- **自动化交互**: 使用 Playwright 驱动浏览器访问 DeepSeek 等模型，提交 Prompt 并截取完整响应。
+- **链接提取**: 自动提取响应中包含的引用链接 (Citations/References)。
+- **任务结果汇报**: 上报文本、链接及原始 HTML 输出。
 
-### 3.2 服务端 (Server)
-- **Prompt 管理**:
-    - 提供管理员 API 进行 Prompt 的 CRUD 操作。
-    - 支持按标签或业务场景对 Prompt 进行分组。
-- **任务生命周期管理**:
-    - **分配逻辑**: 响应监控端的请求，分配优先级最高的 `pending` 任务。
-    - **超时监控**: 监控长时间处于 `processing` 状态的任务，若超时则重置。
-    - **结果处理**: 接收并存储监控端回传的模型原始数据。
+### 3.2 服务端 (Server) - 监控与分析
+- **Prompt 管理**: 支持 Prompt 的分类与 CRUD。
 - **品牌曝光分析 (核心)**:
-    - **自动化打分**: 对 `Result` 中的文本进行多维度分析（品牌提及、推荐度、竞品对比）。
-    - **链接分析**: 检查引用链接是否包含目标品牌官网或正面报道。
-- **API 服务**:
-    - 为监控端提供任务分发和结果回收接口。
-    - 为管理后台提供 Prompt 管理和数据分析展示接口。
+    - **自动化打分**: 对回复文本进行提及率、正面性、对比优势等维度的评分。
+    - **引用分析**: 检查引用链接的权重，判断是否包含官方或正面渠道。
+
+### 3.3 内容优化 (Content Optimization) - 新增
+- **文章生成**:
+    - 根据监控分析出的“品牌弱点”或“竞品优势”，自动调用 LLM 生成高质量的品牌软文。
+    - 文章需包含目标关键词、品牌信息，并模仿权威媒体或真实用户的口吻。
+- **发布管理**:
+    - **多平台适配**: 支持配置不同社交平台或博客网站的发布接口（或模拟点击发布）。
+    - **链接反馈**: 记录发布后的文章 URL，以便后续监控这些链接是否被 AI 引用。
 
 ## 4. 任务执行流程
-
-1. **监控端** -> 发起 `GET /api/client/task`: "有新任务吗？"
-2. **服务端** -> 返回 `Task ID + Prompt`: "去问这个问题。" (并将任务置为 `processing`)
-3. **监控端** -> 执行 Playwright 脚本: 打开 DeepSeek，提问，抓取结果。
-4. **监控端** -> 发起 `POST /api/client/task/:id/report`: "任务做完了，这是结果。"
-5. **服务端** -> 接收结果: 更新任务状态为 `completed`，触发异步品牌分析逻辑。
+1. **分析**: 服务端分析现有数据，发现品牌在某些提问下的曝光不足。
+2. **生成**: 内容生成模块生成 3-5 篇针对性的优化文章。
+3. **发布**: 系统自动或辅助发布文章到互联网。
+4. **监控**: 监控端定期执行相关任务，验证新发布的文章是否被 AI 引用，以及品牌评分是否提升。
 
 ## 5. API 定义 (初步)
 
 ### 5.1 监控端接口
-- `GET /api/client/task`: 获取当前待执行任务。
-- `POST /api/client/task/:id/report`: 上报任务执行结果（`response_text`, `references`）。
-- `POST /api/client/task/:id/error`: 上报任务失败信息。
+- `GET /api/client/task`: 获取任务。
+- `POST /api/client/task/:id/report`: 上报结果（含 `raw_output`）。
 
-### 5.2 Prompt 管理接口 (Admin)
-- `GET /api/prompts`: 获取列表。
-- `POST /api/prompts`: 创建。
-- `PUT /api/prompts/:id`: 更新。
-- `DELETE /api/prompts/:id`: 删除。
-
-### 5.3 数据分析与展示接口
-- `GET /api/analytics/overview`: 整体评分趋势。
-- `GET /api/analytics/results`: 详细任务回复与得分详情。
+### 5.2 优化与生成接口 (Admin)
+- `POST /api/optimize/generate-article`: 触发文章生成任务。
+- `GET /api/optimize/articles`: 获取已生成的文章列表。
+- `POST /api/optimize/publish`: 记录/触发发布任务。
 
 ## 6. 数据模型 (初步)
 
 ### 6.1 Prompt (提示词)
-- `id`: 唯一标识
-- `content`: 提示词内容
-- `category`: 分类
-- `created_at`: 创建时间
+- `id`, `content`, `category`
 
-### 6.2 Task (任务)
-- `id`: 唯一标识
-- `prompt_id`: 关联的 Prompt
-- `status`: 状态（pending, processing, completed, failed）
-- `last_run`: 最近运行时间
+### 6.2 Task & Result
+- `tasks`: `id`, `prompt_id`, `status`, `last_run`
+- `results`: `id`, `task_id`, `response_text`, `raw_output`, `brand_score`, `analysis_report`
+- `citations`: `id`, `task_id`, `url`, `title` (独立存放)
 
-### 6.3 Result (结果)
+### 6.3 Optimization Article (优化文章) - 新增
 - `id`: 唯一标识
-- `task_id`: 关联任务
-- `response_text`: 模型回复全文
-- `references`: 引用链接列表 (JSON)
-- `brand_score`: 品牌曝光得分
-- `analysis_report`: 详细分析报告 (JSON)
+- `brand_id`: 目标品牌
+- `title`: 文章标题
+- `content`: 文章正文
+- `target_keywords`: 目标关键词
+- `publish_status`: 发布状态（pending, published）
+- `published_url`: 发布后的外链地址
+- `created_at`: 生成时间
 
 ## 7. 技术栈建议
-- **监控端**: Node.js + Playwright
-- **服务端**: Node.js (NestJS/Express) 或 Python (FastAPI)
-- **数据库**: PostgreSQL / MongoDB (用于结果存储)
-- **分析引擎**: 可集成简单 NLP 库或调用大模型 API 进行二次打分分析。
+- **监控端**: Python + Playwright (同步 API)
+- **服务端后端**: Go (trpc-go 框架)
+- **服务端前端**: Vue 3 (Vite + Pinia)
+- **数据库**: MySQL 8.0+
 
 ## 8. 后续规划
-- 增加更多大模型支持（ChatGPT, Claude, Gemini 等）。
-- 增加代理池支持以应对反爬。
-- 可视化看板 (Dashboard) 开发。
+- 建立**品牌语料库**，确保持续输出高质量内容。
+- 对接更多自媒体平台 API。
+- 增加**GEO 效果追踪图表**，可视化展示优化前后的品牌权重变化。
