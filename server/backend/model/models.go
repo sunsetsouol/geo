@@ -29,6 +29,8 @@ type Result struct {
 	TaskID         uint64    `gorm:"uniqueIndex;not null" json:"task_id"`
 	ResponseText   string    `gorm:"type:longtext" json:"response_text"`
 	BrandScore     float64   `gorm:"type:decimal(5,2);default:0.00" json:"brand_score"`
+	ExposureCount  int       `gorm:"default:0" json:"exposure_count"`
+	ExposureRank   int       `gorm:"default:0" json:"exposure_rank"`
 	AnalysisReport string    `gorm:"type:json" json:"analysis_report"`
 	CreatedAt      time.Time `json:"created_at"`
 }
@@ -45,10 +47,13 @@ type Citation struct {
 // Article 生成的优化品牌曝光的文章表
 type Article struct {
 	ID             uint64    `gorm:"primaryKey;autoIncrement" json:"id"`
+	BrandName      string    `gorm:"type:varchar(100);not null" json:"brand_name"`
 	Title          string    `gorm:"type:varchar(255);not null" json:"title"`
 	Content        string    `gorm:"type:longtext;not null" json:"content"`
 	TargetKeywords string    `gorm:"type:varchar(255)" json:"target_keywords"`
 	PublishStatus  string    `gorm:"type:enum('pending','published');default:'pending'" json:"publish_status"`
+	Status         string    `gorm:"type:enum('pending','processing','completed','failed');default:'pending'" json:"status"`
+	Error          string    `gorm:"type:text" json:"error"`
 	PublishedURL   string    `gorm:"type:text" json:"published_url"`
 	CreatedAt      time.Time `json:"created_at"`
 	UpdatedAt      time.Time `json:"updated_at"`

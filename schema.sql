@@ -52,10 +52,13 @@ CREATE TABLE `citations` (
 -- 5. 优化文章表 (Articles)
 CREATE TABLE `articles` (
     `id` BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    `brand_name` VARCHAR(100) NOT NULL COMMENT '目标品牌名称',
     `title` VARCHAR(255) NOT NULL COMMENT '文章标题',
     `content` LONGTEXT NOT NULL COMMENT '文章正文',
     `target_keywords` VARCHAR(255) DEFAULT NULL COMMENT '目标关键词',
     `publish_status` ENUM('pending', 'published') DEFAULT 'pending' COMMENT '发布状态',
+    `status` varchar(20) DEFAULT 'pending' COMMENT '生成状态,pending:待生成,processing:生成中,completed:生成完成,failed:生成失败',
+    `error` TEXT DEFAULT NULL COMMENT '生成错误信息',
     `published_url` TEXT DEFAULT NULL COMMENT '发布后的外链地址',
     `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP,
     `updated_at` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP

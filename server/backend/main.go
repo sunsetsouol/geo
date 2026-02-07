@@ -47,6 +47,16 @@ func main() {
 			prompts.PUT("/:id", handler.UpdatePrompt)
 			prompts.DELETE("/:id", handler.DeletePrompt)
 		}
+
+		articles := api.Group("/articles")
+		{
+			articles.POST("/generate", handler.StartGenerateArticle)
+			articles.GET("", handler.GetAllArticles)
+			articles.GET("/:id", handler.GetArticleByID)
+			articles.POST("", handler.CreateArticle)
+			articles.PUT("/:id", handler.UpdateArticle)
+			articles.DELETE("/:id", handler.DeleteArticle)
+		}
 	}
 
 	// 启动服务

@@ -14,6 +14,9 @@ type Config struct {
 	Server struct {
 		Port string `yaml:"port"`
 	} `yaml:"server"`
+	LLM struct {
+		DashScopeAPIKey string `yaml:"dashscope_api_key"`
+	} `yaml:"llm"`
 }
 
 var AppConfig Config

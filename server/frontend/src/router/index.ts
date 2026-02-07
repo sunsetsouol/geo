@@ -12,6 +12,21 @@ const router = createRouter({
       path: '/prompts',
       name: 'prompts',
       component: () => import('../views/PromptsView.vue')
+    },
+    {
+      path: '/articles',
+      name: 'articles',
+      component: () => import('../views/ArticlesView.vue')
+    },
+    {
+      path: '/articles/generate',
+      name: 'article-generate',
+      component: () => import('../views/ArticleGenerateView.vue')
+    },
+    {
+      path: '/articles/edit/:id',
+      name: 'article-edit',
+      component: () => import('../views/ArticleEditView.vue')
     }
   ]
 })
